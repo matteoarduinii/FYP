@@ -1,0 +1,102 @@
+#!/bin/bash
+#PBS -N ts_diffusion_training
+#PBS -l select=1:ncpus=8:mem=40gb
+#PBS -l walltime=16:00:00
+#PBS -j oe
+
+echo "=== Starting Job ==="
+echo "Job Name: ts_diffusion_training"
+echo "Node Resources: 1 node, 8 CPUs, 40GB memory"
+echo "Walltime: 16 hours"
+echo "----------------------------------"
+
+# Load Anaconda module
+module load anaconda3/personal
+
+# Initialize Conda
+echo "Sourcing conda from \$HOME/anaconda3/etc/profile.d/conda.sh..."
+source $HOME/anaconda3/etc/profile.d/conda.sh
+echo "Conda initialized successfully."
+
+# 2) Activate Conda Environment
+echo "Activating conda environment: pyenv"
+source activate pyenv
+if [ $? -ne 0 ]; then
+    echo "ERROR: Could not activate 'pyenv' environment."
+    exit 1
+fi
+echo "Environment 'pyenv' activated successfully."
+
+# 3) Change to the Directory from Where the Job Was Submitted
+echo "PBS_O_WORKDIR: $PBS_O_WORKDIR"
+if [ -z "$PBS_O_WORKDIR" ]; then
+    echo "WARNING: PBS_O_WORKDIR is not set. Using current working directory."
+    PBS_O_WORKDIR=$(pwd)
+fi
+cd "$PBS_O_WORKDIR" || {
+    echo "ERROR: Cannot change to directory $PBS_O_WORKDIR"
+    exit 1
+}
+echo "Now in directory: $(pwd)"
+
+# 4) Skipping package installation (handled manually)
+echo "Skipping package installation. Assuming environment is already prepared."
+
+# 5) Debugging: Print Conda and Python Info
+echo "----------------------------------"
+echo "Conda executable: $CONDA_EXE"
+echo "Conda prefix: $CONDA_PREFIX"
+echo "Which conda: $(which conda)"
+echo "Which python: $(which python)"
+python --version
+
+echo "----------------------------------"
+echo "Listing Conda packages..."
+conda list
+
+echo "----------------------------------"
+echo "Listing pip packages (if any)..."
+pip list
+
+echo "----------------------------------"
+echo "Verifying Python imports..."
+python -c "
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+from loguru import logger
+from scipy.ndimage import gaussian_filter
+from torch.utils.data import DataLoader, Dataset
+print('All required packages imported successfully.')
+" || {
+    echo "ERROR: One or more Python imports failed."
+    exit 1
+}
+
+# 6) Run Python Script with Timestamped Logging
+echo "----------------------------------"
+echo "Starting Python script execution..."
+log_file="./log_$(date +%Y%m%d_%H%M%S).txt"
+
+python realGenerateVelocityMaps.py 2>&1 | tee "$log_file"
+
+if [ $? -eq 0 ]; then
+    echo "Python script executed successfully."
+else
+    echo "ERROR during Python script execution!"
+    exit 1
+fi
+
+# 7) Deactivate Conda Environment
+echo "Deactivating Conda environment..."
+source deactivate
+if [ $? -ne 0 ]; then
+    echo "ERROR deactivating environment!"
+    exit 1
+fi
+echo "Environment deactivated successfully."
+
+echo "=== Job Completed Successfully ==="
+
