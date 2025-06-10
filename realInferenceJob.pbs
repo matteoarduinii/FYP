@@ -1,0 +1,54 @@
+#!/bin/bash
+#PBS -N microbubble_training
+#PBS -l select=1:ncpus=4:mem=80gb:ngpus=1
+#PBS -l walltime=08:00:00
+#PBS -j oe
+
+echo "=== Job Started ==="
+echo "Job Name: microbubble_training"
+echo "Requested Resources: 1 node, 4 CPUs, 80GB RAM, 1 GPU"
+echo "Walltime: 8 hours"
+echo "----------------------------------"
+
+# Load required modules
+module load anaconda3/personal
+module load cuda/11.8  # Match your installed CUDA version
+
+# Initialize Conda
+echo "Initializing Conda..."
+source $HOME/anaconda3/etc/profile.d/conda.sh
+
+# Activate the correct environment
+echo "Activating conda environment: pyenv"
+conda activate pyenv || {
+    echo "ERROR: Failed to activate conda environment 'pyenv'"
+    exit 1
+}
+
+# Fix Intel MKL CUDA issue
+export LD_PRELOAD=$CONDA_PREFIX/lib/libiomp5.so:$CONDA_PREFIX/lib/libmkl_core.so
+
+# Change to job submission directory
+cd "$PBS_O_WORKDIR" || {
+    echo "ERROR: Cannot cd into PBS_O_WORKDIR"
+    exit 1
+}
+echo "Current working directory: $(pwd)"
+
+# Diagnostics
+echo "----------------------------------"
+echo "Which Python: $(which python)"
+python --version
+echo "Checking torch and CUDA availability:"
+python -c "import torch; print('Torch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+
+# Run training
+echo "----------------------------------"
+echo "Starting training script..."
+log_file="log_$(date +%Y%m%d_%H%M%S).txt"
+python realInference.py 2>&1 | tee "$log_file"
+
+# Done
+echo "----------------------------------"
+echo "Job finished with exit code $?"
+echo "=== Job Completed ==="
